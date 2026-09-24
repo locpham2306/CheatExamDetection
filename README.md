@@ -19,3 +19,10 @@ Hệ thống phát hiện gian lận phòng thi qua camera sử dụng Computer 
    ```bash
    streamlit run app.py
    ```
+
+3. Chạy camera trực tiếp, không dùng web:
+   ```bash
+   python live_demo.py
+   ```
+
+   Nhấn `Q` hoặc `Esc` để thoát.

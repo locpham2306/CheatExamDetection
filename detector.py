@@ -8,9 +8,6 @@ class ObjectDetector:
         self.model = YOLO(model_path)
 
     def detect_and_track(self, frame):
-        """
-        Thực hiện Object Detection và ByteTrack Tracking trên frame.
-        """
         results = self.model.track(frame, persist=True, verbose=False, tracker="bytetrack.yaml")[0]
         
         persons = []
@@ -21,7 +18,6 @@ class ObjectDetector:
             clss = results.boxes.cls.cpu().numpy().astype(int)
             confs = results.boxes.conf.cpu().numpy()
             
-            # Kiểm tra xem tracking IDs có khả dụng không
             track_ids = results.boxes.id.cpu().numpy().astype(int) if results.boxes.id is not None else [None] * len(boxes)
 
             for box, cls, conf, track_id in zip(boxes, clss, confs, track_ids):
