@@ -19,7 +19,6 @@ RISK_COLORS = {"LOW": (0, 255, 0), "MEDIUM": (0, 165, 255), "HIGH": (0, 0, 255)}
 
 
 
-@st.cache_resource
 def load_models():
     # best.pt -> điện thoại | yolov8n-pose -> người + tracking + hướng đầu
     return ObjectDetector(), PoseAnalyzer()
@@ -64,7 +63,8 @@ class LatestFrameReader:
         while not self.stopped:
             ok, frame = self.cap.read()
             if not ok:
-                self.failed = True
+                if not self.stopped:
+                    self.failed = True
                 break
             with self.lock:
                 self.frame = frame
@@ -76,8 +76,9 @@ class LatestFrameReader:
 
     def release(self):
         self.stopped = True
-        self.thread.join(timeout=1)
         self.cap.release()
+        if self.thread.is_alive():
+            self.thread.join(timeout=1)
 
 
 def draw_frame(frame, phones, results):
@@ -120,8 +121,8 @@ def render_stats(placeholder, stats):
     if not stats:
         placeholder.info("Chưa có dữ liệu.")
         return
-    df = pd.DataFrame.from_dict(stats, orient="index")
-    df = df.sort_values("Điểm rủi ro cao nhất", ascending=False)
+    raw = pd.DataFrame.from_dict(stats, orient="index")
+    raw = raw.sort_values("Điểm rủi ro cao nhất", ascending=False)
 
     df = pd.DataFrame({
         "Phát hiện điện thoại": raw["Frame có điện thoại"].gt(0).map({True: "Có", False: "Không"}),
@@ -131,7 +132,7 @@ def render_stats(placeholder, stats):
     df.index.name = "ID"
 
     def highlight_high_risk(row):
-        if row["Điểm rủi ro cao nhất"] >= config.RISK_LEVEL_HIGH:
+        if row["Điểm nguy cơ"] >= config.RISK_LEVEL_HIGH:
             return ["background-color: #ff4b4b; color: white; font-weight: bold"] * len(row)
         return [""] * len(row)
 
@@ -143,8 +144,10 @@ if "running" not in st.session_state:
     st.session_state.running = False
 if "stats" not in st.session_state:
     st.session_state.stats = {}
+if "models" not in st.session_state:
+    st.session_state.models = load_models()
 
-detector, pose_analyzer = load_models()
+detector, pose_analyzer = st.session_state.models
 
 with st.sidebar:
     st.header("Nguồn camera")
@@ -218,7 +221,7 @@ if st.session_state.running:
     last_frame_time = time.time()
 
     try:
-        while True:
+        while st.session_state.running:
             frame = reader.read()
             if frame is None:
                 if reader.failed or time.time() - last_frame_time > 10:

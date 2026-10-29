@@ -15,16 +15,11 @@ st.title("🚨 Phát hiện gian lận thi trực tiếp")
 st.caption("Cho phép truy cập camera, sau đó hệ thống sẽ nhận diện người, điện thoại và hướng quay đầu theo thời gian thực.")
 
 
-@st.cache_resource
-def load_models():
-    return ObjectDetector(), PoseAnalyzer()
-
-
-detector, pose_analyzer = load_models()
-
-
 class ExamVideoProcessor(VideoProcessorBase):
     def __init__(self):
+        # Mỗi phiên WebRTC có tracker riêng để track_id không bị lẫn giữa camera.
+        self.detector = ObjectDetector()
+        self.pose_analyzer = PoseAnalyzer()
         self.behavior_engine = BehaviorEngine()
         self.lock = threading.Lock()
 
@@ -32,9 +27,22 @@ class ExamVideoProcessor(VideoProcessorBase):
         image = frame.to_ndarray(format="bgr24")
 
         with self.lock:
-            persons, phones = detector.detect_and_track(image)
-            poses = pose_analyzer.analyze_pose(image)
-            results = self.behavior_engine.process_frame_data(persons, phones, poses)
+            phones = self.detector.detect_phones(image)
+            persons = self.pose_analyzer.analyze_pose(image)
+            results = self.behavior_engine.process_frame_data(persons, phones)
+
+        for phone in phones:
+            x1, y1, x2, y2 = map(int, phone["box"])
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(
+                image,
+                f"PHONE {phone['conf']:.2f}",
+                (x1, max(25, y1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 0, 255),
+                2,
+            )
 
         for result in results:
             x1, y1, x2, y2 = map(int, result["box"])

@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict, deque
 import config
 
@@ -6,11 +5,64 @@ import config
 class BehaviorEngine:
     def __init__(self):
         self.history = defaultdict(lambda: deque(maxlen=config.TEMPORAL_WINDOW_FRAMES * 2))
+        self.last_seen = {}
+        self.frame_index = 0
 
-    def _euclidean_distance(self, p1, p2):
-        return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+    @staticmethod
+    def _normalized_center_distance(person, phone):
+        px, py = person["center"]
+        fx, fy = phone["center"]
+        x1, y1, x2, y2 = person["box"]
+        width = max(x2 - x1, 1)
+        height = max(y2 - y1, 1)
+        return ((px - fx) / width) ** 2 + ((py - fy) / height) ** 2
+
+    @staticmethod
+    def _phone_is_near_person(person, phone):
+        x1, y1, x2, y2 = person["box"]
+        width = max(x2 - x1, 1)
+        height = max(y2 - y1, 1)
+        margin_x = width * config.PHONE_ASSOCIATION_MARGIN_RATIO
+        margin_y = height * config.PHONE_ASSOCIATION_MARGIN_RATIO
+        phone_x, phone_y = phone["center"]
+        return (
+            x1 - margin_x <= phone_x <= x2 + margin_x
+            and y1 - margin_y <= phone_y <= y2 + margin_y
+        )
+
+    def _associate_phones(self, persons, phones):
+        """Gán mỗi điện thoại cho tối đa một người gần nhất."""
+        assigned_track_ids = set()
+        trackable_persons = [p for p in persons if p["track_id"] is not None]
+
+        for phone in phones:
+            candidates = [
+                person
+                for person in trackable_persons
+                if self._phone_is_near_person(person, phone)
+            ]
+            if candidates:
+                closest = min(
+                    candidates,
+                    key=lambda person: self._normalized_center_distance(person, phone),
+                )
+                assigned_track_ids.add(closest["track_id"])
+
+        return assigned_track_ids
+
+    def _remove_stale_histories(self):
+        stale_ids = [
+            track_id
+            for track_id, last_frame in self.last_seen.items()
+            if self.frame_index - last_frame > config.TRACK_HISTORY_TTL_FRAMES
+        ]
+        for track_id in stale_ids:
+            self.last_seen.pop(track_id, None)
+            self.history.pop(track_id, None)
 
     def process_frame_data(self, persons, phones):
+        self.frame_index += 1
+        phone_track_ids = self._associate_phones(persons, phones)
         frame_analysis = []
 
         for person in persons:
@@ -19,13 +71,9 @@ class BehaviorEngine:
                 continue
 
             p_box = person["box"]
-            p_center = person["center"]
             head_dir = person["head_direction"]
-
-            has_phone = any(
-                self._euclidean_distance(p_center, phone["center"]) < config.PHONE_ASSOCIATION_THRESHOLD
-                for phone in phones
-            )
+            has_phone = track_id in phone_track_ids
+            self.last_seen[track_id] = self.frame_index
 
             self.history[track_id].append({
                 "has_phone": has_phone,
@@ -72,5 +120,6 @@ class BehaviorEngine:
                 "rules": detected_rules,
             })
 
+        self._remove_stale_histories()
         return frame_analysis
 
