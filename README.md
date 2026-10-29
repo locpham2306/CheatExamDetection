@@ -20,11 +20,27 @@ WebRTC dùng camera trình duyệt:
 streamlit run src/app.py
 ```
 
-Web giám sát camera URL, camera local hoặc điện thoại qua ADB:
+Giao diện giám sát camera điện thoại qua Wi-Fi, webcam máy tính hoặc video tải
+lên:
 
 ```powershell
 streamlit run src/web.py
 ```
+
+### Camera điện thoại không dây
+
+1. Kết nối điện thoại và máy tính vào cùng một mạng Wi-Fi.
+2. Mở ứng dụng phát camera như IP Webcam hoặc DroidCam trên điện thoại.
+3. Bật máy chủ video trong ứng dụng.
+4. Trong giao diện web, chọn **Điện thoại qua Wi-Fi** và nhập URL ứng dụng cung
+   cấp, ví dụ `http://192.168.1.20:8080/video`.
+
+Không cần ADB, USB debugging hoặc cáp USB.
+
+### Phân tích video
+
+Trong cùng giao diện `src/web.py`, chọn video MP4, AVI, MOV, MKV hoặc M4V ở
+khung **Phân tích video có sẵn**, sau đó nhấn **Phân tích video**.
 
 Demo OpenCV với camera local:
 
