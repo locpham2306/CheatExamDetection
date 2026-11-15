@@ -29,7 +29,7 @@ RISK_COLORS = {
 
 
 def load_models():
-    # best.pt -> điện thoại | yolov8n-pose -> người + tracking + hướng đầu
+    # best_phone_detection.pt -> điện thoại | yolov8n-pose -> người + tracking + hướng đầu
     return ObjectDetector(), PoseAnalyzer()
 
 
@@ -194,6 +194,7 @@ def analyze_frame(frame, detector, pose_analyzer, behavior_engine):
 
 def run_live_source(
     source,
+    source_type,
     detector,
     pose_analyzer,
     process_every_n,
@@ -206,10 +207,16 @@ def run_live_source(
     if not reader.is_opened():
         reader.release()
         st.session_state.active_mode = None
-        status.error(
-            "Không mở được camera. Hãy kiểm tra URL, kết nối Wi-Fi và đảm bảo "
-            "ứng dụng camera trên điện thoại đã bật máy chủ video."
-        )
+        if source_type == "Webcam máy tính":
+            status.error(
+                f"Không mở được camera số {source}. Hãy đóng ứng dụng khác đang "
+                "dùng camera hoặc thử số camera khác (DroidCam thường là 1)."
+            )
+        else:
+            status.error(
+                "Không mở được luồng camera. Hãy kiểm tra URL, kết nối mạng và "
+                "đảm bảo ứng dụng trên điện thoại đang phát video."
+            )
         return
 
     reader.start()
@@ -380,8 +387,9 @@ with live_panel:
             help="Điện thoại và máy tính phải cùng mạng Wi-Fi.",
         ).strip()
         st.caption(
-            "Mở IP Webcam/DroidCam trên điện thoại, bật server rồi nhập URL "
-            "mà ứng dụng hiển thị. Không cần ADB hoặc cáp USB."
+            "Dành cho ứng dụng cung cấp URL video, ví dụ IP Webcam trên Android. "
+            "Với DroidCam trên iPhone, hãy kết nối bằng DroidCam Client rồi chọn "
+            "Webcam máy tính. Không cần ADB hoặc cáp USB."
         )
     elif live_source_type == "Webcam máy tính":
         source = int(st.number_input("Số camera", 0, 9, 0, step=1))
@@ -450,6 +458,7 @@ with stats_column:
 if st.session_state.active_mode == "live":
     run_live_source(
         source,
+        live_source_type,
         detector,
         pose_analyzer,
         process_every_n,

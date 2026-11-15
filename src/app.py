@@ -1,98 +1,80 @@
-import threading
+"""Trình khởi chạy một nút cho giao diện Exam Cheat Detection."""
 
-import av
-import cv2
-import streamlit as st
-from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
-
-from behavior_engine import BehaviorEngine
-from detector import ObjectDetector
-from pose_analyzer import PoseAnalyzer
-
-
-st.set_page_config(page_title="Exam Cheat Detection", layout="wide")
-st.title("🚨 Phát hiện gian lận thi trực tiếp")
-st.caption("Cho phép truy cập camera, sau đó hệ thống sẽ nhận diện người, điện thoại và hướng quay đầu theo thời gian thực.")
+import os
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+import webbrowser
+from pathlib import Path
 
 
-class ExamVideoProcessor(VideoProcessorBase):
-    def __init__(self):
-        # Mỗi phiên WebRTC có tracker riêng để track_id không bị lẫn giữa camera.
-        self.detector = ObjectDetector()
-        self.pose_analyzer = PoseAnalyzer()
-        self.behavior_engine = BehaviorEngine()
-        self.lock = threading.Lock()
-
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        image = frame.to_ndarray(format="bgr24")
-
-        with self.lock:
-            phones = self.detector.detect_phones(image)
-            persons = self.pose_analyzer.analyze_pose(image)
-            results = self.behavior_engine.process_frame_data(persons, phones)
-
-        for phone in phones:
-            x1, y1, x2, y2 = map(int, phone["box"])
-            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            cv2.putText(
-                image,
-                f"PHONE {phone['conf']:.2f}",
-                (x1, max(25, y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (0, 0, 255),
-                2,
-            )
-
-        for result in results:
-            x1, y1, x2, y2 = map(int, result["box"])
-            level = result["risk_level"]
-            color = {
-                "LOW": (0, 255, 0),
-                "MEDIUM": (0, 165, 255),
-                "HIGH": (0, 0, 255),
-            }[level]
-
-            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-            label = (
-                f"ID #{result['track_id']} | Risk {result['risk_score']}% "
-                f"| {result['head_dir']}"
-            )
-            cv2.putText(
-                image,
-                label,
-                (x1, max(25, y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                color,
-                2,
-            )
-
-            if result["rules"]:
-                warning = " | ".join(result["rules"])
-                cv2.putText(
-                    image,
-                    warning,
-                    (x1, min(image.shape[0] - 10, y2 + 22)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    color,
-                    2,
-                )
-
-        return av.VideoFrame.from_ndarray(image, format="bgr24")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+WEB_APP = PROJECT_ROOT / "src" / "web.py"
 
 
-webrtc_streamer(
-    key="exam-live-camera",
-    mode=WebRtcMode.SENDRECV,
-    rtc_configuration=RTCConfiguration(
-        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-    ),
-    media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
-    video_processor_factory=ExamVideoProcessor,
-    desired_playing_state=True,
-    async_processing=True,
-)
+def running_under_streamlit():
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-st.info("Nếu camera chưa hiện, nhấn **START** và chọn **Allow/Cho phép** khi trình duyệt hỏi quyền camera.")
+        return get_script_run_ctx(suppress_warning=True) is not None
+    except (ImportError, TypeError):
+        return False
+
+
+def find_available_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind(("127.0.0.1", 0))
+        return server_socket.getsockname()[1]
+
+
+def main():
+    environment = os.environ.copy()
+    environment["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+    port = find_available_port()
+    app_url = f"http://localhost:{port}"
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(WEB_APP),
+        "--server.headless=true",
+        f"--server.port={port}",
+        "--browser.gatherUsageStats=false",
+    ]
+    process = subprocess.Popen(command, cwd=PROJECT_ROOT, env=environment)
+
+    try:
+        for _ in range(60):
+            if process.poll() is not None:
+                return process.returncode
+            try:
+                with urllib.request.urlopen(
+                    f"{app_url}/_stcore/health", timeout=0.5
+                ) as response:
+                    if response.status == 200:
+                        if os.environ.get("EXAM_APP_NO_BROWSER") != "1":
+                            webbrowser.open(app_url)
+                        print(f"Exam Cheat Detection: {app_url}")
+                        break
+            except OSError:
+                time.sleep(0.25)
+
+        return process.wait()
+    except KeyboardInterrupt:
+        process.terminate()
+        return process.wait(timeout=5)
+
+
+if __name__ == "__main__":
+    if running_under_streamlit():
+        import streamlit as st
+
+        st.error(
+            "`app.py` là file khởi chạy. Hãy chạy `python src/app.py` hoặc "
+            "chạy trực tiếp `streamlit run src/web.py`."
+        )
+    else:
+        raise SystemExit(main())
