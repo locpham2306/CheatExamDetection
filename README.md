@@ -23,14 +23,14 @@ pip install -r requirements.txt
 ## Chạy
 
 Sau khi cài đặt, mở `src/app.py` trong VS Code và nhấn nút **Run Python
-File**. Hoặc chạy lệnh:
+File**. Launcher này mở dashboard WebGPU mới trong `web_proctor/`. Hoặc chạy lệnh:
 
 ```powershell
 python src/app.py
 ```
 
-Lệnh trên tự mở giao diện giám sát camera điện thoại qua Wi-Fi, webcam máy tính
-hoặc video tải lên. Cũng có thể khởi chạy Streamlit trực tiếp:
+Lệnh trên tự mở giao diện giám sát camera điện thoại, webcam máy tính hoặc video
+tải lên. Giao diện Streamlit cũ chỉ còn để tham khảo và có thể chạy trực tiếp:
 
 ```powershell
 streamlit run src/web.py

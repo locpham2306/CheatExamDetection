@@ -1,17 +1,14 @@
-"""Trình khởi chạy một nút cho giao diện Exam Cheat Detection."""
+"""Trình khởi chạy một nút cho dashboard WebGPU Exam Cheat Detection."""
 
 import os
 import socket
 import subprocess
 import sys
-import time
-import urllib.request
-import webbrowser
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-WEB_APP = PROJECT_ROOT / "src" / "web.py"
+WEB_SERVER = PROJECT_ROOT / "web_proctor" / "server.py"
 
 
 def running_under_streamlit():
@@ -23,45 +20,32 @@ def running_under_streamlit():
         return False
 
 
-def find_available_port():
+def find_available_port(preferred=8000):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", preferred))
+            return preferred
+        except OSError:
+            pass
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind(("127.0.0.1", 0))
         return server_socket.getsockname()[1]
 
 
 def main():
-    environment = os.environ.copy()
-    environment["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
     port = find_available_port()
-    app_url = f"http://localhost:{port}"
     command = [
         sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(WEB_APP),
-        "--server.headless=true",
-        f"--server.port={port}",
-        "--browser.gatherUsageStats=false",
+        str(WEB_SERVER),
+        "--port",
+        str(port),
     ]
-    process = subprocess.Popen(command, cwd=PROJECT_ROOT, env=environment)
+    if os.environ.get("EXAM_APP_NO_BROWSER") == "1":
+        command.append("--no-browser")
+    process = subprocess.Popen(command, cwd=PROJECT_ROOT)
 
     try:
-        for _ in range(60):
-            if process.poll() is not None:
-                return process.returncode
-            try:
-                with urllib.request.urlopen(
-                    f"{app_url}/_stcore/health", timeout=0.5
-                ) as response:
-                    if response.status == 200:
-                        if os.environ.get("EXAM_APP_NO_BROWSER") != "1":
-                            webbrowser.open(app_url)
-                        print(f"Exam Cheat Detection: {app_url}")
-                        break
-            except OSError:
-                time.sleep(0.25)
-
         return process.wait()
     except KeyboardInterrupt:
         process.terminate()
@@ -73,8 +57,8 @@ if __name__ == "__main__":
         import streamlit as st
 
         st.error(
-            "`app.py` là file khởi chạy. Hãy chạy `python src/app.py` hoặc "
-            "chạy trực tiếp `streamlit run src/web.py`."
+            "`app.py` là launcher dashboard WebGPU. Hãy chạy bằng nút "
+            "**Run Python File** hoặc lệnh `python src/app.py`, không chạy qua Streamlit."
         )
     else:
         raise SystemExit(main())
