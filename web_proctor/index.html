@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Hệ thống phát hiện gian lận thi cử</title>
+
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f8fafc;
+            --text: #0f172a;
+            --muted: #475569;
+            --surface: rgba(255, 255, 255, 0.95);
+            --surface-border: rgba(200, 210, 220, 0.3);
+            --panel-border: rgba(148, 163, 184, 0.35);
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --button-bg: #e2e8f0;
+            --button-text: #0f172a;
+            --button-secondary-bg: #f8fafc;
+            --button-secondary-border: rgba(148, 163, 184, 0.25);
+            --info-button-bg: #dbeafe;
+            --info-button-border: rgba(59, 130, 246, 0.24);
+            --link: #0f172a;
+            --header-bg: rgba(255, 255, 255, 0.95);
+            --modal-bg: #ffffff;
+            --modal-backdrop: rgba(15, 23, 42, 0.58);
+            --fallback-bg: #020617;
+            --fallback-icon-bg: #0f172a;
+            --fallback-icon-border: #334155;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, Segoe UI, Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .app {
+            width: min(1500px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 20px 0 60px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            font-size: 12px;
+            color: #94a3b8;
+            border-top: 1px solid rgba(200, 210, 220, 0.2);
+        }
+
+        footer a {
+            color: #64748b;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        footer a:hover {
+            color: #0f172a;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(200, 210, 220, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+
+        .header {
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #22c55e;
+            box-shadow: 0 0 16px rgba(34, 197, 94, 0.9);
+        }
+
+        #coreStatus,
+        #feedStatus,
+        #isolationBadge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            background: transparent;
+            border: 0;
+        }
+
+        h1 {
+            margin: 8px 0 2px;
+            color: #0f172a;
+            font-size: 28px;
+            line-height: 1.2;
+        }
+
+        h2 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 20px;
+        }
+
+        p {
+            margin: 0;
+        }
+
+        .subtext {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 16px;
+            color: #0f172a;
+            font-weight: 700;
+            cursor: pointer;
+            background: #e2e8f0;
+        }
+
+        button:hover {
+            opacity: 0.95;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #startBtn {
+            background: #bae6fd;
+        }
+
+        #stopBtn {
+            background: #fecaca;
+        }
+
+        #purgeBtn,
+        #exportZipBtn {
+            background: #e2e8f0;
+        }
+
+        #analyzeVideoBtn {
+            background: #ddd6fe;
+        }
+
+        .source-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 14px;
+            background: #f8fafc;
+        }
+
+        .source-stack {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .source-mode-nav {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding: 6px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 16px;
+            background: #eef2f7;
+        }
+
+        .source-mode-button {
+            min-height: 46px;
+            color: #475569;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .source-mode-button.active {
+            color: #0f172a;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+        }
+
+        .camera-card,
+        .video-source-card {
+            padding: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 16px;
+            background: #f8fafc;
+        }
+
+        .video-source-card .source-bar {
+            margin-bottom: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+        }
+
+        .camera-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .camera-card-head strong {
+            font-size: 15px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            color: #475569;
+            background: #e2e8f0;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .status-pill.online {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .status-pill.error {
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        .camera-fields {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) 150px auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        select {
+            width: 100%;
+            min-height: 42px;
+            padding: 0 12px;
+            border: 1px solid rgba(148, 163, 184, 0.42);
+            border-radius: 11px;
+            color: #0f172a;
+            background: #ffffff;
+            font: inherit;
+        }
+
+        .camera-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .camera-actions button {
+            flex: 1;
+        }
+
+        .camera-hint {
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .source-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .file-picker {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 16px;
+            border-radius: 12px;
+            color: #0f172a;
+            background: #e2e8f0;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .file-picker:has(input:disabled) {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .file-picker input {
+            display: none;
+        }
+
+        #selectedVideoName {
+            min-width: 0;
+            max-width: 440px;
+            overflow: hidden;
+            color: #64748b;
+            font-size: 13px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .video-progress {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .video-progress progress {
+            width: 100%;
+            height: 8px;
+            accent-color: #6366f1;
+        }
+
+        #videoTime {
+            color: #64748b;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        button.secondary {
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 380px;
+            gap: 22px;
+            align-items: start;
+        }
+
+        .panel {
+            padding: 18px;
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+
+        .panel-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .viewport {
+            position: relative;
+            overflow: hidden;
+            border-radius: 22px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: #020617;
+            aspect-ratio: 16 / 9;
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+        }
+
+        video,
+        #overlayCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #fallback {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #020617;
+            text-align: center;
+            color: #f8fafc;
+        }
+
+        #fallback h2 {
+            color: #f8fafc;
+            margin: 0 0 6px 0;
+            font-size: 20px;
+        }
+
+        #fallback .subtext {
+            color: #94a3b8;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .fallback-icon {
+            width: 68px;
+            height: 68px;
+            display: grid;
+            place-items: center;
+            margin: 0 auto 16px;
+            border-radius: 18px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            font-size: 34px;
+            color: #ffffff;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat {
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 13px;
+        }
+
+        .stat label {
+            display: block;
+            color: #64748b;
+            font-size: 12px;
+            margin-bottom: 7px;
+        }
+
+        .stat strong {
+            color: #0f172a;
+            font-size: 14px;
+        }
+
+        #logFeed {
+            height: min(760px, calc(100vh - 210px));
+            min-height: 520px;
+            overflow-y: auto;
+            border-radius: 22px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 14px;
+        }
+
+        #emptyFeed {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        .incident-card {
+            margin-bottom: 12px;
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: #ffffff;
+            overflow: hidden;
+            animation: slideIn 240ms ease-out;
+        }
+
+        .incident-inner {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            align-items: flex-start;
+        }
+
+        .incident-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .incident-actions a {
+            text-decoration: none;
+            color: #0f172a;
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .incident-card img {
+            width: 112px;
+            height: 84px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .incident-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        .incident-detail {
+            margin-top: 5px;
+            color: #475569;
+            font-size: 12px;
+        }
+
+        .incident-time {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .incident-tag {
+            display: inline-block;
+            margin-top: 8px;
+            border-radius: 999px;
+            padding: 4px 8px;
+            color: #0f172a;
+            background: rgba(219, 234, 254, 0.7);
+            font-size: 10px;
+            font-weight: 900;
+        }
+
+        .title-with-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .info-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 10px 16px;
+            background: #dbeafe;
+            color: #0f172a;
+            border: 1px solid rgba(59, 130, 246, 0.24);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+        }
+
+        .info-button:hover {
+            transform: translateY(-1px);
+            background: #bfdbfe;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.58);
+            z-index: 1000;
+        }
+
+        .modal-panel {
+            width: min(760px, 100%);
+            max-height: 90vh;
+            overflow: auto;
+            background: #ffffff;
+            border-radius: 24px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
+            padding: 28px;
+            position: relative;
+        }
+
+        .modal-panel h2 {
+            margin-top: 0;
+            color: #0f172a;
+            font-size: 24px;
+            line-height: 1.1;
+        }
+
+        .modal-panel p,
+        .modal-panel li,
+        .modal-panel span {
+            color: #475569;
+            font-size: 14px;
+            line-height: 1.75;
+        }
+
+        .modal-panel ul,
+        .modal-panel ol {
+            margin: 8px 0 0 18px;
+            padding: 0;
+        }
+
+        .modal-panel li {
+            margin-bottom: 8px;
+        }
+
+        .modal-section {
+            margin-top: 22px;
+        }
+
+        .modal-section h3 {
+            margin: 0 0 10px;
+            font-size: 16px;
+            color: #0f172a;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            margin-top: 24px;
+        }
+
+        .modal-panel,
+        .glass,
+        #logFeed,
+        .stat,
+        .viewport {
+            background: var(--panel-bg);
+        }
+
+        .glass {
+            border-color: var(--surface-border);
+            background: var(--surface);
+        }
+
+        .stat {
+            border-color: var(--panel-border);
+            background: var(--card-bg);
+        }
+
+        .panel-head h2,
+        h1,
+        h2,
+        .incident-title,
+        #coreStatus,
+        #feedStatus,
+        #isolationBadge,
+        .stat strong,
+        .stat label,
+        .modal-panel h2,
+        .modal-panel h3 {
+            color: var(--text);
+        }
+
+        .stat label,
+        p,
+        .modal-panel p,
+        .modal-panel li,
+        .modal-panel span,
+        .info-button,
+        .git-link,
+        .modal-footer span {
+            color: var(--muted);
+        }
+
+        .info-button {
+            background: var(--info-button-bg);
+            border-color: var(--info-button-border);
+            color: #0f172a;
+        }
+
+        .modal-panel {
+            background: var(--modal-bg);
+            border-color: rgba(148, 163, 184, 0.22);
+        }
+
+        .modal-close {
+            background: #f8fafc;
+        }
+
+        .git-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            background: #f8fafc;
+            color: #0f172a;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            .modal-panel {
+                max-height: 100%;
+                padding: 20px;
+            }
+
+            .modal-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            #logFeed {
+                height: 520px;
+                min-height: 0;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 680px) {
+            .camera-fields {
+                grid-template-columns: 1fr;
+            }
+
+            .camera-actions,
+            .source-actions {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .camera-actions button,
+            .source-actions > * {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="app">
+        <header class="glass header">
+            <div>
+                <span id="coreStatus" class="hidden">Edge Core Booting</span>
+                <div class="title-with-info">
+                    <h1>Hệ thống phát hiện gian lận thi cử</h1>
+                    <button id="infoBtn" class="info-button" type="button">Thông tin</button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="exportZipBtn" class="secondary">Xuất minh chứng</button>
+                <button id="purgeBtn">Xóa lịch sử</button>
+            </div>
+        </header>
+
+        <section class="grid">
+            <section class="glass panel">
+                <div class="panel-head">
+                    <h2 id="workspaceTitle">Camera trực tiếp</h2>
+                    <span id="isolationBadge" class="hidden" title="Cross-origin isolation status">ISO</span>
+                </div>
+
+                <div class="source-stack">
+                    <nav class="source-mode-nav" aria-label="Chọn chế độ giám sát">
+                        <button class="source-mode-button active" type="button" data-workspace-mode="live"
+                            aria-selected="true">Camera trực tiếp</button>
+                        <button class="source-mode-button" type="button" data-workspace-mode="video"
+                            aria-selected="false">Phân tích video</button>
+                    </nav>
+
+                    <section id="liveSourcePanel" class="camera-card" aria-labelledby="cameraSourceTitle">
+                        <div class="camera-card-head">
+                            <strong id="cameraSourceTitle">Nguồn camera</strong>
+                            <span id="cameraStatus" class="status-pill">Chưa kết nối</span>
+                        </div>
+
+                        <div class="camera-fields">
+                            <div class="field">
+                                <label for="cameraSourceType">Loại camera</label>
+                                <select id="cameraSourceType">
+                                    <option value="phone" selected>Camera điện thoại (DroidCam)</option>
+                                    <option value="computer">Camera máy tính</option>
+                                </select>
+                                <select id="cameraSelect" class="hidden" aria-hidden="true" tabindex="-1">
+                                    <option value="">Đang tìm camera...</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="cameraQuality">Chất lượng</label>
+                                <select id="cameraQuality">
+                                    <option value="1920x1080">1080p</option>
+                                    <option value="1280x720" selected>720p</option>
+                                    <option value="640x480">480p</option>
+                                </select>
+                            </div>
+                            <button id="refreshCamerasBtn" class="secondary" type="button">Làm mới</button>
+                        </div>
+
+                        <div class="camera-actions">
+                            <button id="startBtn" type="button" disabled>Bắt đầu giám sát</button>
+                            <button id="stopBtn" type="button" class="hidden">Dừng camera</button>
+                        </div>
+                        <p id="cameraInfo" class="camera-hint">Ứng dụng sẽ ưu tiên thiết bị có tên DroidCam.</p>
+                    </section>
+
+                    <section id="videoSourcePanel" class="video-source-card hidden" aria-label="Nguồn video">
+                        <div class="source-bar">
+                            <div class="source-actions">
+                                <label class="file-picker" for="videoFileInput">
+                                    Chọn video
+                                    <input id="videoFileInput" type="file" accept="video/*,.mp4,.webm,.mov,.m4v" />
+                                </label>
+                                <button id="analyzeVideoBtn" type="button" disabled>Phân tích video</button>
+                                <button id="stopVideoBtn" type="button" class="hidden">Dừng phân tích</button>
+                            </div>
+                            <span id="selectedVideoName">Chưa chọn video</span>
+                        </div>
+                    </section>
+                </div>
+
+                <div id="viewport" class="viewport">
+                    <video id="video" autoplay muted playsinline></video>
+                    <canvas id="overlayCanvas"></canvas>
+
+                    <div id="fallback">
+                        <div>
+                            <div class="fallback-icon">🛡️</div>
+                            <h2 id="fallbackTitle">Chưa có nguồn hình ảnh</h2>
+                            <p id="fallbackHint" class="subtext">Chọn camera rồi bắt đầu giám sát.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="videoProgressWrap" class="video-progress hidden">
+                    <progress id="videoProgress" value="0" max="1"></progress>
+                    <span id="videoTime">00:00 / 00:00</span>
+                </div>
+
+                <div class="stats">
+                    <div class="stat">
+                        <label>Nhận diện người/vật thể</label>
+                        <strong id="yoloState">INIT</strong>
+                    </div>
+
+                    <div class="stat">
+                        <label>Nhận diện hướng đầu</label>
+                        <strong id="faceState">INIT</strong>
+                    </div>
+
+                    <div class="stat">
+                        <label>Điện thoại / GPU</label>
+                        <strong id="phoneState">INIT</strong>
+                    </div>
+
+                    <div class="stat">
+                        <label>Hướng đầu / keypoint mặt</label>
+                        <strong id="yawReadout">0/0</strong>
+                    </div>
+
+                    <div class="stat">
+                        <label>Số cảnh báo</label>
+                        <strong id="incidentCount">0</strong>
+                    </div>
+                </div>
+                <p id="sessionMeta" class="hidden">Session Pipeline Disengaged</p>
+            </section>
+
+            <aside class="glass panel" aria-label="Nhật ký cảnh báo">
+                <div class="panel-head">
+                    <h2>Nhật ký cảnh báo</h2>
+                    <div class="panel-actions">
+                        <span id="feedStatus" class="status-pill">An toàn</span>
+                    </div>
+                </div>
+
+                <div id="logFeed">
+                    <div id="emptyFeed">
+                        <div>
+                            <div style="font-size: 40px;">🛡️</div>
+                            <p style="font-weight: 900; color: #334155; margin-top: 10px;">
+                                Chưa có cảnh báo
+                            </p>
+                            <p style="font-size: 12px; color: #64748b; margin-top: 4px;">
+                                Sự kiện vi phạm sẽ xuất hiện tại đây kèm ảnh minh chứng.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <canvas id="yoloCanvas" width="640" height="640" class="hidden"></canvas>
+    <canvas id="rawCanvas" class="hidden"></canvas>
+    <canvas id="snapshotCanvas" class="hidden"></canvas>
+
+    <footer>
+        Exam Cheat Detection · Browser AI
+    </footer>
+
+    <div id="infoModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle"
+        aria-describedby="infoModalDescription">
+        <div class="modal-panel">
+            <button id="infoCloseBtn" type="button" class="modal-close" aria-label="Close information dialog">✕</button>
+            <h2 id="infoModalTitle">Giới thiệu hệ thống</h2>
+            <p id="infoModalDescription">Ứng dụng phát hiện người, điện thoại, tài liệu và hướng quay đầu trực tiếp
+                trên trình duyệt. Khung và trạng thái được hiển thị ngay trên hình ảnh camera.</p>
+
+            <div class="modal-section">
+                <h3>Chức năng</h3>
+                <p>Hệ thống giám sát thí sinh theo thời gian thực:</p>
+                <ul>
+                    <li>Khoanh khung từng người xuất hiện trong camera</li>
+                    <li>Hiển thị nhìn thẳng, quay trái hoặc quay phải trên từng khung người</li>
+                    <li>Phát hiện điện thoại, trao đổi tài liệu và lưu ảnh minh chứng</li>
+                </ul>
+            </div>
+
+            <div class="modal-section">
+                <h3>Cách thử</h3>
+                <ol>
+                    <li>Chọn <strong>DroidCam</strong> rồi nhấn <strong>Bắt đầu giám sát</strong>.</li>
+                    <li>Hoặc chọn một video rồi nhấn <strong>Phân tích video</strong>.</li>
+                    <li>Đứng trong khung hình rồi quay đầu sang trái hoặc phải.</li>
+                    <li>Đưa điện thoại vào hình hoặc trao đổi tài liệu để kiểm tra nhận diện.</li>
+                </ol>
+            </div>
+
+            <div class="modal-section">
+                <h3>Ảnh minh chứng</h3>
+                <p>Nhấn <strong>Xuất minh chứng</strong> để tải file ZIP chứa các ảnh cảnh báo đã ghi nhận.</p>
+            </div>
+
+            <div class="modal-footer">
+                <a id="gitRepoLink" class="git-link" href="https://github.com/ChinmoyDeb/ai-exam-proctor"
+                    target="_blank" rel="noreferrer noopener">https://github.com/ChinmoyDeb/ai-exam-proctor</a>
+                <span>Recommended checks: camera access, face presence, attention direction, object detection, and
+                    export workflow.</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="./main.js"></script>
+</body>
+
+</html>
