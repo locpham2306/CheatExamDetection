@@ -2,6 +2,7 @@
 
 const MODEL_YOLO_URL = "/models/yolo26s.onnx";
 const MODEL_PHONE_URL = "/models/best_phone_detection.onnx";
+const MODEL_PHONE_COCO_URL = "/models/yolov8n-coco-phone.onnx";
 const MODEL_FACE_URL = "/models/face_landmarker.task";
 const MODEL_POSE_URL = "/models/yolov8n-pose.onnx";
 
@@ -453,7 +454,11 @@ function initializePhoneWorker() {
     phoneWorker = new Worker(`/workers/phoneWorker.js?t=${epoch}`);
     phoneWorker.onmessage = handlePhoneMessage;
     phoneWorker.onerror = handlePhoneError;
-    phoneWorker.postMessage({ action: "INIT", modelUrl: MODEL_PHONE_URL });
+    phoneWorker.postMessage({
+        action: "INIT",
+        modelUrl: MODEL_PHONE_URL,
+        cocoModelUrl: MODEL_PHONE_COCO_URL
+    });
 }
 
 function handlePhoneMessage(event) {
@@ -462,7 +467,8 @@ function handlePhoneMessage(event) {
     if (message.status === "READY_WEBGPU" || message.status === "READY_WASM") {
         phoneReady = true;
         if (phoneState) {
-            phoneState.textContent = message.status === "READY_WEBGPU" ? "GPU READY" : "CPU READY";
+            const provider = message.status === "READY_WEBGPU" ? "GPU" : "CPU";
+            phoneState.textContent = `${message.modelCount || 1} MODEL · ${provider} READY`;
         }
         if (yoloState && yoloReady) yoloState.textContent = "READY + PHONE";
         return;
@@ -479,7 +485,7 @@ function handlePhoneMessage(event) {
         if (meta.mode === "tile") {
             const tileBoxes = transformPhoneBoxes(normalized, meta).map((box) => ({
                 ...box,
-                detector: "dedicated-phone-tile"
+                detector: `${box.detector}-tile`
             }));
             phoneTileResults.set(meta.tile, {
                 boxes: tileBoxes,
@@ -504,7 +510,8 @@ function handlePhoneMessage(event) {
             const latency = Number.isFinite(message.inferenceMs)
                 ? `${Math.round(message.inferenceMs)} ms`
                 : "READY";
-            phoneState.textContent = `${provider} · ${latency}`;
+            const counts = message.counts || {};
+            phoneState.textContent = `2 MODEL · ${provider} · ${latency} · ${counts.custom || 0}+${counts.coco || 0}`;
         }
         updateBehaviorTracking({ updateDirection: false, updateObjects: true });
         return;
@@ -1356,13 +1363,14 @@ function normalizeYoloResult(flatData) {
 function normalizePhoneResult(flatData) {
     const boxes = [];
 
-    for (let i = 0; i + 4 < flatData.length; i += 5) {
+    for (let i = 0; i + 5 < flatData.length; i += 6) {
         const x1 = Number(flatData[i]);
         const y1 = Number(flatData[i + 1]);
         const x2 = Number(flatData[i + 2]);
         const y2 = Number(flatData[i + 3]);
         const confidence = Number(flatData[i + 4]);
-        if (!Number.isFinite(confidence) || confidence < 0.30) continue;
+        const sourceCode = Number(flatData[i + 5]);
+        if (!Number.isFinite(confidence) || confidence < 0.18) continue;
         boxes.push({
             x1,
             y1,
@@ -1372,7 +1380,7 @@ function normalizePhoneResult(flatData) {
             classId: 67,
             label: "Cell Phone",
             violation: true,
-            detector: "dedicated-phone"
+            detector: sourceCode === 1 ? "phone-coco" : "phone-custom"
         });
     }
 
@@ -2206,13 +2214,15 @@ function getPhoneBoxes() {
         const width = Math.max(0, box.x2 - box.x1);
         const height = Math.max(0, box.y2 - box.y1);
         const areaRatio = (width * height) / (YOLO_SIZE * YOLO_SIZE);
-        const confidenceFloor = box.detector === "dedicated-phone-tile"
-            ? 0.42
-            : (box.detector === "dedicated-phone" ? 0.50 : 0.40);
+        const isPhoneEnsemble = String(box.detector || "").startsWith("phone-");
+        const isPhoneTile = String(box.detector || "").endsWith("-tile");
+        const confidenceFloor = isPhoneEnsemble
+            ? (isPhoneTile ? 0.28 : 0.32)
+            : 0.35;
         return box.confidence >= confidenceFloor && areaRatio <= 0.015;
     }).sort((a, b) => {
-        const aDedicated = String(a.detector || "").startsWith("dedicated-phone");
-        const bDedicated = String(b.detector || "").startsWith("dedicated-phone");
+        const aDedicated = String(a.detector || "").startsWith("phone-");
+        const bDedicated = String(b.detector || "").startsWith("phone-");
         if (aDedicated && !bDedicated) return -1;
         if (bDedicated && !aDedicated) return 1;
         return b.confidence - a.confidence;

@@ -1,8 +1,8 @@
 # Exam Cheat Detection
 
-Demo phát hiện hành vi đáng ngờ trong phòng thi bằng camera. Hệ thống dùng
-`best_phone_detection.pt` (class `0`, `phone`) để phát hiện điện thoại và
-`yolov8n-pose.pt` để nhận diện, tracking người và ước lượng hướng đầu.
+Demo phát hiện hành vi đáng ngờ trong phòng thi bằng camera. Hệ thống giữ model
+YOLO cũ để nhận diện/tracking người, dùng hai model ensemble để phát hiện điện
+thoại và dùng pose keypoint để ước lượng hướng đầu.
 
 ## Cài đặt
 
@@ -57,7 +57,7 @@ Trình duyệt sẽ tự mở tại `http://localhost:8000`. Giao diện có hai
 **Bắt đầu giám sát**. Chế độ này khoanh người, hiển thị hướng quay đầu
 và cảnh báo điện thoại/tài liệu trực tiếp trên hình ảnh. Nhật ký bên phải lưu
 thời gian, nội dung và ảnh của từng cảnh báo; có thể tải từng ảnh hoặc nhấn
-**Xuất minh chứng** để lấy toàn bộ dưới dạng ZIP. Lần mở đầu tiên cần chờ ba
+**Xuất minh chứng** để lấy toàn bộ dưới dạng ZIP. Lần mở đầu tiên cần chờ bốn
 model ONNX được nạp từ ổ đĩa. Không cần cài thêm thư viện Python.
 
 Khi DroidCam Client đã kết nối iPhone và hiện hình, chọn **Camera điện thoại
@@ -76,16 +76,18 @@ Pipeline browser hiện tách thành ba phần:
 
 - `yolo26s.onnx`: người, laptop và tài liệu dạng sách.
 - `yolov8n-pose.onnx`: keypoint cơ thể/mặt và hướng đầu.
-- `best_phone_detection.onnx`: model một class `phone` xuất từ
-  `model/best_phone_detection.pt` của dự án, chạy theo chu kỳ riêng để giữ FPS.
+- Hai model điện thoại chạy dạng ensemble: `best_phone_detection.onnx` chuyên
+  một class `phone` của dự án và `yolov8n-coco-phone.onnx` lọc class COCO
+  `cell phone` (67). Kết quả được ghép bằng NMS để model này bù ca bỏ sót của
+  model kia, rồi mới gắn điện thoại với ID người gần nhất.
 
 Các worker ONNX ưu tiên WebGPU ở chế độ `high-performance`; trên máy có GPU rời
 không cần cài thêm CUDA/PyTorch cho bản chạy trình duyệt. Với cảnh lớp học,
 detector điện thoại quét luân phiên bốn vùng chồng lấn thay vì chỉ thu nhỏ cả
 lớp về 640×640. Cách này làm điện thoại nhỏ lớn hơn trong đầu vào model, đồng
 thời giữ kết quả các vùng trong một cửa sổ ngắn để tracking không bị chớp.
-Thẻ **Điện thoại / GPU** trên giao diện hiển thị backend và thời gian inference
-thực tế.
+Thẻ **Điện thoại / GPU** trên giao diện hiển thị `2 MODEL`, backend, thời gian
+inference thực tế và số candidate của từng model.
 
 Mỗi người có ID ổn định giữa các frame. Quay trái/phải chỉ chuyển thành cảnh
 báo đỏ khi cùng một ID có ít nhất ba kết quả liên tiếp cùng hướng và giữ hướng

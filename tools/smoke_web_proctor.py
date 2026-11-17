@@ -32,6 +32,7 @@ def main() -> None:
         raise SystemExit(f"Video not found: {video_path}")
 
     console_errors: list[str] = []
+    page_errors: list[str] = []
     with sync_playwright() as playwright:
         installed_browser = args.browser
         if installed_browser is None:
@@ -47,11 +48,39 @@ def main() -> None:
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         page.on("console", lambda message: console_errors.append(message.text)
                 if message.type == "error" else None)
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
         page.goto(args.url, wait_until="domcontentloaded", timeout=30_000)
-        page.wait_for_function("yoloReady && poseReady", timeout=180_000)
+        try:
+            page.wait_for_function("yoloReady && poseReady", timeout=180_000)
+        except Exception:
+            print("PAGE_ERRORS")
+            for error in page_errors:
+                print(error)
+            print("CONSOLE_ERRORS")
+            for error in console_errors:
+                print(error)
+            raise
+        page.locator('[data-workspace-mode="video"]').click()
         page.locator("#videoFileInput").set_input_files(str(video_path))
         page.locator("#analyzeVideoBtn").click()
-        page.wait_for_function("sessionActive && sourceMode === 'video'", timeout=30_000)
+        try:
+            page.wait_for_function("sessionActive && sourceMode === 'video'", timeout=30_000)
+        except Exception:
+            print("VIDEO_START_STATE")
+            print(json.dumps(page.evaluate("""() => ({
+                selected: selectedVideoName.textContent,
+                disabled: analyzeVideoBtn.disabled,
+                sourceMode,
+                sessionActive,
+                phoneState: phoneState.textContent
+            })"""), ensure_ascii=True))
+            print("PAGE_ERRORS")
+            for error in page_errors:
+                print(error)
+            print("CONSOLE_ERRORS")
+            for error in console_errors:
+                print(error)
+            raise
         page.evaluate(
             """async (second) => {
                 video.currentTime = Math.min(second, Math.max(0, video.duration - 1));

@@ -32,6 +32,18 @@ cùng phép resize 640×640 mà browser sử dụng:
 - Đo lại đoạn 20–28 giây của Altima sau khi tile: số pose có đủ keypoint mặt
   tăng từ khoảng 10 lên 23/24; cảnh báo quay đầu giả giảm từ 6 xuống 0.
 
+Pipeline browser hiện ghép thêm `yolov8n-coco-phone.onnx`, chỉ lấy class COCO
+`cell phone` (67), sau đó NMS chung với model chuyên dụng. Kiểm tra trên ba ảnh
+COCO có điện thoại cho thấy hai model bù nhau: ở một ảnh model dự án chỉ đạt
+1,3% trong khi model COCO đạt 25,6%; ở ảnh khác model dự án đạt 76,8% còn model
+COCO đạt 34,5%. Smoke test end-to-end bằng video WebM xác nhận model COCO bắt
+được điện thoại 55,9%, kết quả được đổi về tọa độ khung gốc và gắn đúng ID
+người. Đây là kiểm tra tích hợp, chưa thay thế tập test có gán nhãn của dự án.
+
+Model COCO được lưu ở dạng ONNX (không nạp pickle), SHA-256
+`65158dad735be799c2466fa15e260c09558080bd530b42a8d0c3d1b419afd8b5`.
+Nguồn và lưu ý license nằm trong `web_proctor/models/README.md`.
+
 Model `srijannn/aiproctor-yolo-detector` không được tích hợp. Model card công
 bố precision 13,9%, mAP50 25,9%; benchmark trên 12 frame Altima ở ngưỡng 0,15
 cho 76 candidate điện thoại. File thử nghiệm đã được xóa.
