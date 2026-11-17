@@ -129,6 +129,14 @@ const infoBtn = document.getElementById("infoBtn");
 const infoModal = document.getElementById("infoModal");
 const infoCloseBtn = document.getElementById("infoCloseBtn");
 const gitRepoLink = document.getElementById("gitRepoLink");
+const evidenceModal = document.getElementById("evidenceModal");
+const evidenceCloseBtn = document.getElementById("evidenceCloseBtn");
+const evidenceModalImage = document.getElementById("evidenceModalImage");
+const evidenceModalTitle = document.getElementById("evidenceModalTitle");
+const evidenceModalDescription = document.getElementById("evidenceModalDescription");
+const evidenceDownloadBtn = document.getElementById("evidenceDownloadBtn");
+const monitorPanel = document.getElementById("monitorPanel");
+const incidentPanel = document.getElementById("incidentPanel");
 
 let yoloWorker = null;
 let phoneWorker = null;
@@ -219,8 +227,27 @@ if (infoModal) infoModal.addEventListener("click", (event) => {
         closeInfoModal();
     }
 });
+if (evidenceCloseBtn) evidenceCloseBtn.addEventListener("click", closeEvidenceModal);
+if (evidenceModal) evidenceModal.addEventListener("click", (event) => {
+    if (event.target === evidenceModal) closeEvidenceModal();
+});
+if (logFeed) logFeed.addEventListener("click", (event) => {
+    const previewButton = event.target.closest("[data-evidence-preview]");
+    if (!previewButton) return;
+    const card = previewButton.closest(".incident-card");
+    if (card) openEvidenceModal(card);
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (evidenceModal && !evidenceModal.classList.contains("hidden")) {
+        closeEvidenceModal();
+    } else if (infoModal && !infoModal.classList.contains("hidden")) {
+        closeInfoModal();
+    }
+});
 
 function bootSystem() {
+    initializeIncidentPanelLayout();
     updateIsolationBadge();
     initializeWorkers();
     initializePhoneWorker();
@@ -235,6 +262,26 @@ function bootSystem() {
             refreshCameraDevices();
         });
     }
+}
+
+function initializeIncidentPanelLayout() {
+    if (!monitorPanel || !incidentPanel) return;
+
+    const desktopLayout = window.matchMedia("(min-width: 981px)");
+    const syncHeight = () => {
+        if (!desktopLayout.matches) {
+            incidentPanel.style.height = "";
+            return;
+        }
+        const monitorHeight = Math.ceil(monitorPanel.getBoundingClientRect().height);
+        if (monitorHeight > 0) incidentPanel.style.height = `${monitorHeight}px`;
+    };
+
+    const resizeObserver = new ResizeObserver(syncHeight);
+    resizeObserver.observe(monitorPanel);
+    desktopLayout.addEventListener?.("change", syncHeight);
+    window.addEventListener("resize", syncHeight, { passive: true });
+    requestAnimationFrame(syncHeight);
 }
 
 function setWorkspaceMode(mode, { stopActiveSession = true } = {}) {
@@ -403,14 +450,48 @@ function initializeInfoPanel() {
 
 function openInfoModal() {
     if (!infoModal) return;
+    closeEvidenceModal();
     infoModal.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
+    syncModalScrollLock();
 }
 
 function closeInfoModal() {
     if (!infoModal) return;
     infoModal.classList.add("hidden");
-    document.body.style.overflow = "";
+    syncModalScrollLock();
+}
+
+function openEvidenceModal(card) {
+    const snapshot = card?.dataset.snapshot;
+    if (!snapshot || !evidenceModal || !evidenceModalImage) return;
+
+    closeInfoModal();
+    const title = card.dataset.title || "Ảnh minh chứng";
+    const detail = card.dataset.detail || "";
+    const time = card.dataset.time || "";
+    evidenceModalTitle.textContent = title;
+    evidenceModalDescription.textContent = [detail, time].filter(Boolean).join(" · ");
+    evidenceModalImage.src = snapshot;
+    if (evidenceDownloadBtn) {
+        evidenceDownloadBtn.href = snapshot;
+        evidenceDownloadBtn.download = card.dataset.filename || "anh-minh-chung.jpg";
+    }
+    evidenceModal.classList.remove("hidden");
+    syncModalScrollLock();
+    evidenceCloseBtn?.focus();
+}
+
+function closeEvidenceModal() {
+    if (!evidenceModal) return;
+    evidenceModal.classList.add("hidden");
+    syncModalScrollLock();
+}
+
+function syncModalScrollLock() {
+    const modalIsOpen = [infoModal, evidenceModal].some(
+        (modal) => modal && !modal.classList.contains("hidden")
+    );
+    document.body.style.overflow = modalIsOpen ? "hidden" : "";
 }
 
 function updateIsolationBadge() {
@@ -2305,22 +2386,30 @@ function registerViolation(type, title, detail) {
         second: "2-digit"
     });
 
+    const filename = `${timeString.replaceAll(":", "-")}-${type}.jpg`;
     card.innerHTML = `
         <div class="incident-inner">
-            <img src="${snapshot}" alt="Ảnh minh chứng vi phạm" />
+            <button class="incident-preview-button" type="button" data-evidence-preview
+                aria-label="Xem ảnh minh chứng: ${escapeHtml(title)}">
+                <img src="${snapshot}" alt="Ảnh minh chứng vi phạm" />
+            </button>
             <div>
                 <h3 class="incident-title">${escapeHtml(title)}</h3>
                 <p class="incident-detail">${escapeHtml(detail || "")}</p>
                 <div class="incident-tag">${escapeHtml(type)}</div>
                 <p class="incident-time">${timeString}</p>
                 <div class="incident-actions">
-                    <a href="${snapshot}" download="${timeString.replaceAll(":", "-")}-${type}.jpg">Tải ảnh</a>
+                    <a href="${snapshot}" download="${filename}">Tải ảnh</a>
                 </div>
             </div>
         </div>
     `;
     card.dataset.snapshot = snapshot;
     card.dataset.violationType = type;
+    card.dataset.title = title;
+    card.dataset.detail = detail || "";
+    card.dataset.time = timeString;
+    card.dataset.filename = filename;
 
     logFeed.prepend(card);
 

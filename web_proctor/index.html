@@ -378,6 +378,13 @@
             padding: 18px;
         }
 
+        .grid > aside.panel {
+            display: flex;
+            min-height: 0;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
         .panel-head {
             display: flex;
             justify-content: space-between;
@@ -480,9 +487,12 @@
         }
 
         #logFeed {
-            height: min(760px, calc(100vh - 210px));
-            min-height: 520px;
+            height: auto;
+            min-height: 0;
+            flex: 1 1 auto;
             overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
             border-radius: 22px;
             border: 1px solid rgba(148, 163, 184, 0.35);
             background: rgba(255, 255, 255, 0.95);
@@ -537,6 +547,32 @@
             object-fit: cover;
             border-radius: 12px;
             border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .incident-preview-button {
+            flex: 0 0 auto;
+            display: block;
+            padding: 0;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            cursor: zoom-in;
+        }
+
+        .incident-preview-button img {
+            display: block;
+            transition: transform 150ms ease, box-shadow 150ms ease;
+        }
+
+        .incident-preview-button:hover img,
+        .incident-preview-button:focus-visible img {
+            transform: scale(1.03);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        }
+
+        .incident-preview-button:focus-visible {
+            outline: 3px solid rgba(59, 130, 246, 0.55);
+            outline-offset: 3px;
         }
 
         .incident-title {
@@ -678,6 +714,50 @@
             margin-top: 24px;
         }
 
+        .evidence-modal-panel {
+            width: min(1120px, 100%);
+            padding: 18px;
+            overflow: hidden;
+        }
+
+        .evidence-modal-panel h2 {
+            margin: 0 52px 14px 0;
+            font-size: 18px;
+        }
+
+        #evidenceModalImage {
+            display: block;
+            width: 100%;
+            max-height: calc(90vh - 150px);
+            object-fit: contain;
+            border-radius: 16px;
+            background: #020617;
+        }
+
+        .evidence-modal-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .evidence-modal-meta p {
+            margin: 0;
+        }
+
+        .evidence-download {
+            flex: 0 0 auto;
+            padding: 9px 13px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: #f8fafc;
+            color: #0f172a;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
         .modal-panel,
         .glass,
         #logFeed,
@@ -782,8 +862,12 @@
                 grid-template-columns: 1fr;
             }
 
+            .grid > aside.panel {
+                height: min(70vh, 620px);
+            }
+
             #logFeed {
-                height: 520px;
+                height: auto;
                 min-height: 0;
             }
 
@@ -807,6 +891,11 @@
             .source-actions > * {
                 width: 100%;
             }
+
+            .evidence-modal-meta {
+                align-items: stretch;
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -829,7 +918,7 @@
         </header>
 
         <section class="grid">
-            <section class="glass panel">
+            <section id="monitorPanel" class="glass panel">
                 <div class="panel-head">
                     <h2 id="workspaceTitle">Camera trực tiếp</h2>
                     <span id="isolationBadge" class="hidden" title="Cross-origin isolation status">ISO</span>
@@ -941,7 +1030,7 @@
                 <p id="sessionMeta" class="hidden">Session Pipeline Disengaged</p>
             </section>
 
-            <aside class="glass panel" aria-label="Nhật ký cảnh báo">
+            <aside id="incidentPanel" class="glass panel" aria-label="Nhật ký cảnh báo">
                 <div class="panel-head">
                     <h2>Nhật ký cảnh báo</h2>
                     <div class="panel-actions">
@@ -1012,6 +1101,19 @@
                     target="_blank" rel="noreferrer noopener">https://github.com/ChinmoyDeb/ai-exam-proctor</a>
                 <span>Recommended checks: camera access, face presence, attention direction, object detection, and
                     export workflow.</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="evidenceModal" class="modal-backdrop hidden" role="dialog" aria-modal="true"
+        aria-labelledby="evidenceModalTitle" aria-describedby="evidenceModalDescription">
+        <div class="modal-panel evidence-modal-panel">
+            <button id="evidenceCloseBtn" type="button" class="modal-close" aria-label="Đóng ảnh minh chứng">✕</button>
+            <h2 id="evidenceModalTitle">Ảnh minh chứng</h2>
+            <img id="evidenceModalImage" alt="Ảnh minh chứng cảnh báo phóng lớn" />
+            <div class="evidence-modal-meta">
+                <p id="evidenceModalDescription"></p>
+                <a id="evidenceDownloadBtn" class="evidence-download" href="#" download>Tải ảnh</a>
             </div>
         </div>
     </div>
