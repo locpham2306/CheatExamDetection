@@ -135,7 +135,7 @@ const evidenceModalImage = document.getElementById("evidenceModalImage");
 const evidenceModalTitle = document.getElementById("evidenceModalTitle");
 const evidenceModalDescription = document.getElementById("evidenceModalDescription");
 const evidenceDownloadBtn = document.getElementById("evidenceDownloadBtn");
-const monitorPanel = document.getElementById("monitorPanel");
+const cameraStage = document.getElementById("cameraStage");
 const incidentPanel = document.getElementById("incidentPanel");
 
 let yoloWorker = null;
@@ -265,21 +265,21 @@ function bootSystem() {
 }
 
 function initializeIncidentPanelLayout() {
-    if (!monitorPanel || !incidentPanel) return;
+    if (!cameraStage || !incidentPanel) return;
 
-    const desktopLayout = window.matchMedia("(min-width: 981px)");
+    const sideBySideLayout = window.matchMedia("(min-width: 821px)");
     const syncHeight = () => {
-        if (!desktopLayout.matches) {
+        if (!sideBySideLayout.matches) {
             incidentPanel.style.height = "";
             return;
         }
-        const monitorHeight = Math.ceil(monitorPanel.getBoundingClientRect().height);
-        if (monitorHeight > 0) incidentPanel.style.height = `${monitorHeight}px`;
+        const cameraHeight = Math.ceil(cameraStage.getBoundingClientRect().height);
+        if (cameraHeight > 0) incidentPanel.style.height = `${cameraHeight}px`;
     };
 
     const resizeObserver = new ResizeObserver(syncHeight);
-    resizeObserver.observe(monitorPanel);
-    desktopLayout.addEventListener?.("change", syncHeight);
+    resizeObserver.observe(cameraStage);
+    sideBySideLayout.addEventListener?.("change", syncHeight);
     window.addEventListener("resize", syncHeight, { passive: true });
     requestAnimationFrame(syncHeight);
 }
