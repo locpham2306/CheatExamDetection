@@ -74,6 +74,8 @@ function buildFaceOrientations(faceLandmarks, transformationMatrices) {
 }
 
 const video = document.getElementById("video");
+const sourceCanvas = document.getElementById("sourceCanvas");
+const sourceCtx = sourceCanvas.getContext("2d", { alpha: false });
 const overlayCanvas = document.getElementById("overlayCanvas");
 const overlayCtx = overlayCanvas.getContext("2d", { alpha: true });
 
@@ -866,7 +868,8 @@ async function startLiveSession() {
 
         setCameraStatus("Đang giám sát", "online");
         if (cameraInfo) {
-            cameraInfo.textContent = `${selectedLabel} · ${actualWidth}×${actualHeight} · ${actualFps}`;
+            const mirrorStatus = cameraSourceType?.value === "computer" ? " · đã sửa chiều webcam" : "";
+            cameraInfo.textContent = `${selectedLabel} · ${actualWidth}×${actualHeight} · ${actualFps}${mirrorStatus}`;
         }
         if (videoTrack) {
             videoTrack.addEventListener("ended", () => {
@@ -1055,6 +1058,9 @@ function resizeCanvases() {
     const width = video.videoWidth || VIDEO_TARGET_WIDTH;
     const height = video.videoHeight || VIDEO_TARGET_HEIGHT;
 
+    sourceCanvas.width = width;
+    sourceCanvas.height = height;
+
     overlayCanvas.width = width;
     overlayCanvas.height = height;
 
@@ -1071,6 +1077,7 @@ function resizeCanvases() {
 function processFrameLoop(timestamp) {
     if (!sessionActive) return;
 
+    renderSourceFrame();
     drawOverlay();
     updateVideoProgress();
 
@@ -1086,6 +1093,26 @@ function processFrameLoop(timestamp) {
     }
 
     animationFrameId = requestAnimationFrame(processFrameLoop);
+}
+
+function renderSourceFrame() {
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+
+    const width = sourceCanvas.width;
+    const height = sourceCanvas.height;
+    const correctComputerWebcamMirror = sourceMode === "camera"
+        && cameraSourceType?.value === "computer";
+
+    sourceCtx.save();
+    sourceCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sourceCtx.fillStyle = "#020617";
+    sourceCtx.fillRect(0, 0, width, height);
+    if (correctComputerWebcamMirror) {
+        sourceCtx.translate(width, 0);
+        sourceCtx.scale(-1, 1);
+    }
+    sourceCtx.drawImage(video, 0, 0, width, height);
+    sourceCtx.restore();
 }
 
 function updateVideoProgress() {
@@ -1126,7 +1153,7 @@ function dispatchModelInference() {
     if (!runYolo && !runPose && !runPhone) return;
 
     try {
-        yoloCtx.drawImage(video, 0, 0, YOLO_SIZE, YOLO_SIZE);
+        yoloCtx.drawImage(sourceCanvas, 0, 0, YOLO_SIZE, YOLO_SIZE);
         const imageData = yoloCtx.getImageData(0, 0, YOLO_SIZE, YOLO_SIZE);
         const tensorData = imageDataToCHWTensor(imageData);
         const usePoseTiles = runPose && shouldUsePoseTiling();
@@ -1139,7 +1166,7 @@ function dispatchModelInference() {
             const sourceX = Math.round(video.videoWidth * poseMeta.xStart);
             const sourceWidth = Math.round(video.videoWidth * poseMeta.xScale);
             yoloCtx.drawImage(
-                video,
+                sourceCanvas,
                 sourceX,
                 0,
                 sourceWidth,
@@ -1164,7 +1191,7 @@ function dispatchModelInference() {
             const sourceWidth = Math.round(video.videoWidth * phoneMeta.xScale);
             const sourceHeight = Math.round(video.videoHeight * phoneMeta.yScale);
             yoloCtx.drawImage(
-                video,
+                sourceCanvas,
                 sourceX,
                 sourceY,
                 sourceWidth,
@@ -1242,7 +1269,7 @@ function dispatchFaceInference(timestamp) {
         try {
             faceBusy = true;
 
-            rawCtx.drawImage(video, 0, 0, rawCanvas.width, rawCanvas.height);
+            rawCtx.drawImage(sourceCanvas, 0, 0, rawCanvas.width, rawCanvas.height);
 
             const safeTimestamp = Math.round(timestamp || performance.now());
 
@@ -2305,7 +2332,7 @@ function createSnapshot() {
 
     try {
         if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            snapshotCtx.drawImage(video, 0, 0, width, height);
+            snapshotCtx.drawImage(sourceCanvas, 0, 0, width, height);
 
             if (overlayCanvas.width && overlayCanvas.height) {
                 snapshotCtx.drawImage(overlayCanvas, 0, 0, width, height);
