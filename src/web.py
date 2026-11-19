@@ -492,7 +492,7 @@ RISK_COLORS = {
 
 
 def load_models():
-    # best_phone_detection.pt -> điện thoại | yolov8n-pose -> người + tracking + hướng đầu
+    # best_phone_predict.pt -> điện thoại | yolov8n-pose -> người + tracking + hướng đầu
     return ObjectDetector(), PoseAnalyzer()
 
 
@@ -929,7 +929,7 @@ with st.sidebar:
         """
         <div class="model-meta">
             <div class="model-meta-row">
-                <strong>best_phone_detection.pt</strong><span>class phone</span>
+                <strong>best_phone_predict.pt</strong><span>class cell_phone</span>
             </div>
             <div class="model-meta-row">
                 <strong>yolov8n-pose.pt</strong><span>pose &amp; tracking</span>

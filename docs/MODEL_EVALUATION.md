@@ -24,7 +24,7 @@ tại 0,5 giây ở cảnh gần hoặc 1 giây ở lớp học và phải gắn
 
 ## Kiểm tra trên dữ liệu của dự án
 
-Model `best_phone_detection.pt` của dự án được xuất thành ONNX và kiểm tra với
+Model `best_phone_detection.pt` trước đây của dự án được xuất thành ONNX và kiểm tra với
 cùng phép resize 640×640 mà browser sử dụng:
 
 - Ảnh iPhone cầm trên tay trong `Smart-Proctor-System`: phát hiện `phone` 79%.
