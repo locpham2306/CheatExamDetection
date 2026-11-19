@@ -1,7 +1,7 @@
 "use strict";
 
 const MODEL_YOLO_URL = "/models/yolo26s.onnx";
-const MODEL_PHONE_URL = "/models/best_phone_detection.onnx";
+const MODEL_PHONE_URL = "/models/best_phone_predict.onnx";
 const MODEL_PHONE_COCO_URL = "/models/yolov8n-coco-phone.onnx";
 const MODEL_FACE_URL = "/models/face_landmarker.task";
 const MODEL_POSE_URL = "/models/yolov8n-pose.onnx";
@@ -1461,7 +1461,9 @@ function normalizePhoneResult(flatData) {
             classId: 67,
             label: "Cell Phone",
             violation: true,
-            detector: sourceCode === 1 ? "phone-coco" : "phone-custom"
+            detector: sourceCode === 2
+                ? "phone-consensus"
+                : (sourceCode === 1 ? "phone-coco" : "phone-custom")
         });
     }
 
@@ -2291,16 +2293,37 @@ function getPhoneBoxes() {
         ...currentPhoneBoxes,
         ...currentBoundingBoxes.filter((box) => box.classId === 67)
     ].filter((box) => {
-        if (!crowded) return true;
         const width = Math.max(0, box.x2 - box.x1);
         const height = Math.max(0, box.y2 - box.y1);
         const areaRatio = (width * height) / (YOLO_SIZE * YOLO_SIZE);
-        const isPhoneEnsemble = String(box.detector || "").startsWith("phone-");
-        const isPhoneTile = String(box.detector || "").endsWith("-tile");
-        const confidenceFloor = isPhoneEnsemble
-            ? (isPhoneTile ? 0.28 : 0.32)
-            : 0.35;
-        return box.confidence >= confidenceFloor && areaRatio <= 0.015;
+        const detector = String(box.detector || "");
+        const isPhoneEnsemble = detector.startsWith("phone-");
+        const isPhoneTile = detector.endsWith("-tile");
+        const isConsensus = detector.startsWith("phone-consensus");
+        const isCustom = detector.startsWith("phone-custom");
+        const isCoco = detector.startsWith("phone-coco");
+        const shortSide = Math.max(1, Math.min(width, height));
+        const aspectRatio = Math.max(width, height) / shortSide;
+        let confidenceFloor = crowded ? 0.35 : 0.25;
+        if (isConsensus) {
+            confidenceFloor = 0.18;
+        } else if (isCustom) {
+            confidenceFloor = crowded ? 0.55 : 0.35;
+        } else if (isCoco) {
+            confidenceFloor = crowded ? (isPhoneTile ? 0.28 : 0.32) : 0.24;
+        }
+        // The former crowded-scene cap (1.5% of the frame) discarded phones
+        // held close to the camera even when the detector found them. The
+        // dedicated models already reject boxes above 35%, so retain both
+        // small classroom phones and large webcam phones here.
+        const maxAreaRatio = isPhoneEnsemble ? 0.35 : 0.20;
+        // The custom model can confuse square ID cards and clothing patches
+        // with phones. Cross-model consensus bypasses this shape gate.
+        const plausibleCustomShape = !isCustom || aspectRatio >= 1.25;
+        return box.confidence >= confidenceFloor
+            && areaRatio >= 0.00008
+            && areaRatio <= maxAreaRatio
+            && plausibleCustomShape;
     }).sort((a, b) => {
         const aDedicated = String(a.detector || "").startsWith("phone-");
         const bDedicated = String(b.detector || "").startsWith("phone-");

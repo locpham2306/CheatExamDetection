@@ -24,6 +24,11 @@ EXAM_CLASSES = {
 
 PHONE_ONLY_CLASSES = {0: "phone"}
 
+PHONE_CALCULATOR_CLASSES = {
+    0: "cell_phone",
+    1: "calculator",
+}
+
 COCO_RELEVANT_CLASSES = {
     0: "person",
     63: "laptop",
@@ -118,13 +123,14 @@ def main() -> None:
         class_count = normalize_output(raw).shape[1] - 4
         labels = (
             PHONE_ONLY_CLASSES if class_count == 1
+            else PHONE_CALCULATOR_CLASSES if class_count == 2
             else EXAM_CLASSES if class_count == 5
             else COCO_RELEVANT_CLASSES
         )
         readable = []
         for class_id, confidence, _ in detections:
             label = labels.get(class_id, f"class_{class_id}")
-            if class_count not in (1, 5) and class_id not in COCO_RELEVANT_CLASSES:
+            if class_count not in (1, 2, 5) and class_id not in COCO_RELEVANT_CLASSES:
                 continue
             totals[label] += 1
             readable.append(f"{label}:{confidence:.2f}")

@@ -44,6 +44,20 @@ Model COCO được lưu ở dạng ONNX (không nạp pickle), SHA-256
 `65158dad735be799c2466fa15e260c09558080bd530b42a8d0c3d1b419afd8b5`.
 Nguồn và lưu ý license nằm trong `web_proctor/models/README.md`.
 
+Ngày 2026-11-19, model custom chính được thay bằng checkpoint do chủ dự án tự
+train (`best_phone_predict.pt`), gồm `cell_phone` và `calculator`. Dashboard
+chỉ giải mã class `cell_phone` rồi ghép với model COCO. Bản ONNX dùng input
+640×640, opset 17; checksum và cấu trúc output được ghi trong
+`web_proctor/models/README.md`. Đồng thời bỏ giới hạn hậu xử lý cũ chỉ cho phép
+điện thoại chiếm tối đa 1,5% khung hình vì giới hạn này làm điện thoại cầm sát
+webcam bị loại dù detector đã nhận ra.
+
+Smoke test cho thấy model custom mới vẫn có thể nhầm thẻ tên, tay và mảng chữ
+trên áo thành điện thoại. Vì vậy kết quả custom-only ở cảnh đông dùng ngưỡng
+cao hơn và kiểm tra tỷ lệ cạnh; nếu custom và COCO chồng bbox thì được đánh dấu
+`phone-consensus` và dùng ngưỡng thấp hơn. Cảnh báo cuối vẫn cần gắn bbox với
+một người và tồn tại liên tục theo thời gian.
+
 Model `srijannn/aiproctor-yolo-detector` không được tích hợp. Model card công
 bố precision 13,9%, mAP50 25,9%; benchmark trên 12 frame Altima ở ngưỡng 0,15
 cho 76 candidate điện thoại. File thử nghiệm đã được xóa.

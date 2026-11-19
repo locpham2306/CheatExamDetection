@@ -76,10 +76,11 @@ Pipeline browser hiện tách thành ba phần:
 
 - `yolo26s.onnx`: người, laptop và tài liệu dạng sách.
 - `yolov8n-pose.onnx`: keypoint cơ thể/mặt và hướng đầu.
-- Hai model điện thoại chạy dạng ensemble: `best_phone_detection.onnx` chuyên
-  một class `phone` của dự án và `yolov8n-coco-phone.onnx` lọc class COCO
-  `cell phone` (67). Kết quả được ghép bằng NMS để model này bù ca bỏ sót của
-  model kia, rồi mới gắn điện thoại với ID người gần nhất.
+- Hai model điện thoại chạy dạng ensemble: `best_phone_predict.onnx` do dự án
+  tự train (chỉ lấy class `cell_phone`, bỏ class `calculator`) và
+  `yolov8n-coco-phone.onnx` lọc class COCO `cell phone` (67). Kết quả được
+  ghép bằng NMS để model này bù ca bỏ sót của model kia, rồi mới gắn điện thoại
+  với ID người gần nhất.
 
 Các worker ONNX ưu tiên WebGPU ở chế độ `high-performance`; trên máy có GPU rời
 không cần cài thêm CUDA/PyTorch cho bản chạy trình duyệt. Với cảnh lớp học,

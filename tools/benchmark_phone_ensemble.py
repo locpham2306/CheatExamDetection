@@ -37,7 +37,7 @@ def main() -> None:
     parser.add_argument("images", nargs="+", type=Path)
     parser.add_argument(
         "--custom", type=Path,
-        default=Path("web_proctor/models/best_phone_detection.onnx"),
+        default=Path("web_proctor/models/best_phone_predict.onnx"),
     )
     parser.add_argument(
         "--coco", type=Path,

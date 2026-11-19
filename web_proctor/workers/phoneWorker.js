@@ -6,6 +6,7 @@ const MODEL_INPUT_SIZE = 640;
 const CUSTOM_CONFIDENCE_THRESHOLD = 0.18;
 const COCO_CONFIDENCE_THRESHOLD = 0.18;
 const NMS_THRESHOLD = 0.45;
+const CONSENSUS_IOU_THRESHOLD = 0.15;
 const COCO_PHONE_CLASS_ID = 67;
 
 let session = null;
@@ -104,6 +105,7 @@ async function infer(tensorData, dims, meta) {
         ...box,
         sourceCode: 1
     }));
+    markConsensus(customDetections, cocoDetections);
     const detections = nonMaxSuppression(
         [...customDetections, ...cocoDetections],
         NMS_THRESHOLD
@@ -123,6 +125,19 @@ async function infer(tensorData, dims, meta) {
         },
         data: flat
     });
+}
+
+function markConsensus(customDetections, cocoDetections) {
+    for (const custom of customDetections) {
+        if (cocoDetections.some((coco) => iou(custom, coco) >= CONSENSUS_IOU_THRESHOLD)) {
+            custom.sourceCode = 2;
+        }
+    }
+    for (const coco of cocoDetections) {
+        if (customDetections.some((custom) => iou(custom, coco) >= CONSENSUS_IOU_THRESHOLD)) {
+            coco.sourceCode = 2;
+        }
+    }
 }
 
 function decodePhoneOutput(output) {
