@@ -76,19 +76,22 @@ Pipeline browser hiện tách thành ba phần:
 
 - `yolo26s.onnx`: người, laptop và tài liệu dạng sách.
 - `yolov8n-pose.onnx`: keypoint cơ thể/mặt và hướng đầu.
-- Hai model điện thoại chạy dạng ensemble: `best_phone_predict.onnx` do dự án
-  tự train (chỉ lấy class `cell_phone`, bỏ class `calculator`) và
-  `yolov8n-coco-phone.onnx` lọc class COCO `cell phone` (67). Kết quả được
-  ghép bằng NMS để model này bù ca bỏ sót của model kia, rồi mới gắn điện thoại
-  với ID người gần nhất.
+- `best_phone_predict.onnx` do dự án tự train (chỉ lấy class `cell_phone`, bỏ
+  class `calculator`) chạy toàn khung cho webcam/camera gần. Với lớp học từ 8
+  người, model này chạy cùng `yolov8n-coco-phone.onnx` (class COCO `cell
+  phone` 67) trên các tile; kết quả được ghép bằng NMS rồi gắn với ID người
+  gần nhất.
 
 Các worker ONNX ưu tiên WebGPU ở chế độ `high-performance`; trên máy có GPU rời
 không cần cài thêm CUDA/PyTorch cho bản chạy trình duyệt. Với cảnh lớp học,
 detector điện thoại quét luân phiên bốn vùng chồng lấn thay vì chỉ thu nhỏ cả
 lớp về 640×640. Cách này làm điện thoại nhỏ lớn hơn trong đầu vào model, đồng
 thời giữ kết quả các vùng trong một cửa sổ ngắn để tracking không bị chớp.
-Thẻ **Điện thoại / GPU** trên giao diện hiển thị `2 MODEL`, backend, thời gian
-inference thực tế và số candidate của từng model.
+Model điện thoại được warm-up trước khi nút bắt đầu mở khóa. Khi giám sát, hệ
+thống chỉ xử lý một frame điện thoại tại một thời điểm, bỏ frame cũ và lấy
+frame mới nhất theo nhịp 250 ms; lượt phone có khe GPU riêng để không tranh
+hàng với model người/pose. Thẻ **Điện thoại / GPU** hiển thị model đang dùng,
+backend, thời gian inference thực tế và số candidate của từng model.
 
 Mỗi người có ID ổn định giữa các frame. Quay trái/phải chỉ chuyển thành cảnh
 báo đỏ khi cùng một ID có ít nhất ba kết quả liên tiếp cùng hướng và giữ hướng

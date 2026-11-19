@@ -20,17 +20,21 @@ const POSE_RECORD_SIZE = 56;
 const HEAD_TURN_ALERT_MS = 2000;
 const HEAD_DIRECTION_GRACE_MS = 900;
 const HEAD_CENTER_RESET_MS = 500;
-// The dedicated YOLOv8s phone model is intentionally sampled less often than
-// pose/person detection. Keep evidence alive across a slow CPU inference so
-// two positive samples can confirm use without a one-frame alert.
-const PHONE_ALERT_MS = 900;
-const CLASSROOM_PHONE_ALERT_MS = 1800;
+// Only one phone inference is active at a time. As soon as it finishes, use
+// the newest camera frame instead of queueing stale frames. The box is drawn
+// on the first result; only the incident log waits for temporal confirmation.
+const PHONE_ALERT_MS = 500;
+const CLASSROOM_PHONE_ALERT_MS = 1000;
 const PHONE_GRACE_MS = 2400;
 const PERSON_TRACK_TTL_MS = 7000;
 const DOCUMENT_TRACK_TTL_MS = 1600;
 const DOCUMENT_OWNER_CONFIRM_MS = 650;
-const PHONE_INFERENCE_INTERVAL_MS = 300;
+// Four fresh phone checks per second are enough for a live alert and leave
+// alternate frames for person/head models. Running all three GPU sessions on
+// the same frame causes queue contention and makes phone results arrive late.
+const PHONE_INFERENCE_INTERVAL_MS = 250;
 const PHONE_TILE_RESULT_TTL_MS = 1800;
+const CLASSROOM_PERSON_THRESHOLD = 8;
 
 function computeYawFromMatrix(matrixObject) {
     if (!matrixObject || !matrixObject.data) return 0;
@@ -525,6 +529,7 @@ function initializePhoneWorker() {
     const epoch = Date.now();
     phoneReady = false;
     phoneBusy = false;
+    unlockStartIfReady();
 
     if (phoneWorker) {
         try {
@@ -552,6 +557,7 @@ function handlePhoneMessage(event) {
             phoneState.textContent = `${message.modelCount || 1} MODEL · ${provider} READY`;
         }
         if (yoloState && yoloReady) yoloState.textContent = "READY + PHONE";
+        unlockStartIfReady();
         return;
     }
 
@@ -592,7 +598,8 @@ function handlePhoneMessage(event) {
                 ? `${Math.round(message.inferenceMs)} ms`
                 : "READY";
             const counts = message.counts || {};
-            phoneState.textContent = `2 MODEL · ${provider} · ${latency} · ${counts.custom || 0}+${counts.coco || 0}`;
+            const modelLabel = message.usedCoco ? "CUSTOM + COCO" : "CUSTOM";
+            phoneState.textContent = `${modelLabel} · ${provider} · ${latency} · ${counts.custom || 0}+${counts.coco || 0}`;
         }
         updateBehaviorTracking({ updateDirection: false, updateObjects: true });
         return;
@@ -867,7 +874,7 @@ function handleFaceError(error) {
 }
 
 function unlockStartIfReady() {
-    const modelsReady = yoloReady && poseReady;
+    const modelsReady = yoloReady && poseReady && phoneReady;
     if (startBtn) startBtn.disabled = !modelsReady || sessionActive;
     if (analyzeVideoBtn) {
         analyzeVideoBtn.disabled = !modelsReady || !selectedVideoFile || sessionActive;
@@ -1233,11 +1240,19 @@ function formatDuration(totalSeconds) {
 }
 
 function dispatchModelInference() {
-    const runYolo = yoloReady && !yoloBusy;
-    const runPose = poseReady && !poseBusy;
+    let runYolo = yoloReady && !yoloBusy;
+    let runPose = poseReady && !poseBusy;
     const now = performance.now();
     const runPhone = phoneReady && !phoneBusy
         && now - lastPhoneInferenceAt >= PHONE_INFERENCE_INTERVAL_MS;
+
+    // Give the phone model an uncontended dispatch slot. Frames are never
+    // queued: while a worker is busy, the UI keeps rendering and the next run
+    // uses the newest available frame.
+    if (runPhone) {
+        runYolo = false;
+        runPose = false;
+    }
     if (!runYolo && !runPose && !runPhone) return;
 
     try {
@@ -1271,9 +1286,9 @@ function dispatchModelInference() {
             poseTensor = runYolo ? tensorData.slice() : tensorData;
         }
         let phoneTensor = null;
-        let phoneMeta = { mode: "full" };
+        let phoneMeta = { mode: "full", useCoco: false };
         if (runPhone && shouldUsePhoneTiling()) {
-            phoneMeta = getNextPhoneTile();
+            phoneMeta = { ...getNextPhoneTile(), useCoco: true };
             const sourceX = Math.round(video.videoWidth * phoneMeta.xStart);
             const sourceY = Math.round(video.videoHeight * phoneMeta.yStart);
             const sourceWidth = Math.round(video.videoWidth * phoneMeta.xScale);
@@ -1471,8 +1486,7 @@ function normalizePhoneResult(flatData) {
 }
 
 function shouldUsePhoneTiling() {
-    if (sourceMode === "video") return true;
-    return getDisplayedPersonCount() >= 3;
+    return isClassroomScene();
 }
 
 function getNextPhoneTile() {
@@ -1860,7 +1874,7 @@ function updatePhoneEvidence(observations, now) {
         seenTrackIds.add(ownerId);
 
         const duration = now - track.phoneSince;
-        const requiredDuration = getDisplayedPersonCount() >= 3
+        const requiredDuration = isClassroomScene()
             ? CLASSROOM_PHONE_ALERT_MS
             : PHONE_ALERT_MS;
         if (duration >= requiredDuration && !track.phoneAlerted) {
@@ -2287,8 +2301,12 @@ function getDisplayedPersonCount() {
     return yoloPeopleCount || currentPosePeople.length;
 }
 
+function isClassroomScene() {
+    return getDisplayedPersonCount() >= CLASSROOM_PERSON_THRESHOLD;
+}
+
 function getPhoneBoxes() {
-    const crowded = getDisplayedPersonCount() >= 3;
+    const crowded = isClassroomScene();
     const candidates = [
         ...currentPhoneBoxes,
         ...currentBoundingBoxes.filter((box) => box.classId === 67)
@@ -2360,7 +2378,7 @@ function drawTelemetryStrip() {
     const phoneCount = [...personTracks.values()].filter(
         (track) => track.phoneSince && now - track.phoneLastSeenAt <= PHONE_GRACE_MS
             && now - track.phoneSince >= (
-                getDisplayedPersonCount() >= 3 ? CLASSROOM_PHONE_ALERT_MS : PHONE_ALERT_MS
+                isClassroomScene() ? CLASSROOM_PHONE_ALERT_MS : PHONE_ALERT_MS
             )
     ).length;
     const awayCount = [...personTracks.values()].filter(

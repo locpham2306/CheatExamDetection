@@ -13,11 +13,14 @@ tra hành vi theo thời gian.
 - Tài liệu: COCO `book` hiện chỉ là candidate. Cảnh báo trao đổi chỉ xuất hiện
   khi candidate được theo dõi và đổi chủ ổn định.
 
-Tối ưu runtime hiện tại: ONNX Runtime Web được yêu cầu dùng GPU hiệu năng cao;
-model điện thoại chạy tối đa mỗi 300 ms. Cảnh đông người được chia thành bốn
-tile chồng lấn 56% × 58%, giúp điện thoại nhỏ có nhiều pixel hơn. Một vòng quét
-đủ bốn vùng mất khoảng 1,2 giây cộng thời gian inference; kết quả tile được giữ
-1,8 giây và vẫn phải vượt kiểm tra thời gian/ID trước khi tạo cảnh báo.
+Tối ưu runtime hiện tại: ONNX Runtime Web được yêu cầu dùng GPU hiệu năng cao
+và warm-up model điện thoại trước khi cho bắt đầu. Không xếp hàng frame: mỗi
+lần chỉ xử lý một frame điện thoại, khi xong sẽ lấy frame mới nhất theo nhịp
+250 ms (tối đa 4 lần/giây). Lượt phone có khe GPU riêng, xen kẽ với model
+người/pose để tránh ba session tranh hàng. Cảnh từ 8 người được chia thành bốn
+tile chồng lấn 56% × 58% và bật thêm model COCO; cảnh gần dùng model custom
+toàn khung để phản hồi nhanh. Khung điện thoại hiện ngay, còn nhật ký cần tồn
+tại 0,5 giây ở cảnh gần hoặc 1 giây ở lớp học và phải gắn được với ID người.
 
 ## Kiểm tra trên dữ liệu của dự án
 

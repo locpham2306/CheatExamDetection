@@ -79,9 +79,24 @@ async function initialize(modelUrl, cocoModelUrl) {
     activeProvider = customProvider === "webgpu" && cocoProvider === "webgpu"
         ? "webgpu"
         : "wasm";
+
+    // The first WebGPU run compiles the graph and can take a few seconds. Do
+    // that work before the Start button is enabled so the first live frame is
+    // not the frame that pays the compilation cost.
+    const warmupStartedAt = performance.now();
+    const warmupData = new Float32Array(1 * 3 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE);
+    const warmupFeeds = {};
+    warmupFeeds[inputName] = new ort.Tensor(
+        "float32",
+        warmupData,
+        [1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE]
+    );
+    await session.run(warmupFeeds);
+
     self.postMessage({
         status: activeProvider === "webgpu" ? "READY_WEBGPU" : "READY_WASM",
-        modelCount: 2
+        modelCount: 2,
+        warmupMs: performance.now() - warmupStartedAt
     });
 }
 
@@ -97,14 +112,17 @@ async function infer(tensorData, dims, meta) {
         sourceCode: 0
     }));
 
-    const cocoFeeds = {};
-    cocoFeeds[cocoInputName] = new ort.Tensor("float32", tensorData, dims);
-    const cocoOutputs = await cocoSession.run(cocoFeeds);
-    const cocoOutput = cocoOutputs[cocoOutputName] || cocoOutputs[Object.keys(cocoOutputs)[0]];
-    const cocoDetections = decodeCocoPhoneOutput(cocoOutput).map((box) => ({
-        ...box,
-        sourceCode: 1
-    }));
+    let cocoDetections = [];
+    if (meta?.useCoco !== false) {
+        const cocoFeeds = {};
+        cocoFeeds[cocoInputName] = new ort.Tensor("float32", tensorData, dims);
+        const cocoOutputs = await cocoSession.run(cocoFeeds);
+        const cocoOutput = cocoOutputs[cocoOutputName] || cocoOutputs[Object.keys(cocoOutputs)[0]];
+        cocoDetections = decodeCocoPhoneOutput(cocoOutput).map((box) => ({
+            ...box,
+            sourceCode: 1
+        }));
+    }
     markConsensus(customDetections, cocoDetections);
     const detections = nonMaxSuppression(
         [...customDetections, ...cocoDetections],
@@ -118,6 +136,7 @@ async function infer(tensorData, dims, meta) {
         status: "RESULT",
         provider: activeProvider,
         inferenceMs: performance.now() - startedAt,
+        usedCoco: meta?.useCoco !== false,
         meta: meta || { mode: "full" },
         counts: {
             custom: customDetections.length,

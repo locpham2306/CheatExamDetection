@@ -139,6 +139,7 @@ def main() -> None:
                 violationTypes: Object.keys(lastViolationTimes),
                 phoneReady,
                 phoneBusy,
+                phoneState: phoneState ? phoneState.textContent : null,
                 yoloState: yoloState ? yoloState.textContent : null,
                 poseState: faceState ? faceState.textContent : null
             })"""
